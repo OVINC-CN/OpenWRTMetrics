@@ -1,0 +1,144 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag name (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Validate tag format
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$ ]]; then
+            echo "Error: Tag must follow semantic versioning format (e.g., v1.0.0, v1.0.0-beta.1)"
+            exit 1
+          fi
+          echo "Tag format is valid: $TAG"
+
+      - name: Check if tag already exists
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Error: Tag $TAG already exists"
+            exit 1
+          fi
+          echo "Tag $TAG does not exist, proceeding..."
+
+      - name: Create and push tag
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      - name: Set version variable
+        id: build_version
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          # Remove 'v' prefix for VERSION variable
+          VERSION="${TAG#v}"
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Build binaries
+        run: |
+          export VERSION="${{ steps.build_version.outputs.version }}"
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.event.inputs.tag }}
+          release_name: Release ${{ github.event.inputs.tag }}
+          draft: false
+          prerelease: false
+          body: |
+            ## Release ${{ github.event.inputs.tag }}
+            
+            ### Binaries
+            Pre-built binaries for multiple platforms are attached to this release.
+            
+            ### Platforms Supported
+            - Linux AMD64
+            - Linux ARM (ARMv7)
+            - Linux ARM64
+            - Linux MIPS (Big Endian)
+            - Linux MIPSLE (Little Endian)
+            
+            ### Installation
+            1. Download the appropriate binary for your platform
+            2. Make it executable: `chmod +x openwrt-exporter-*`
+            3. Run it: `./openwrt-exporter-*`
+
+      - name: Upload Linux AMD64 binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-amd64
+          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-amd64
+          asset_content_type: application/octet-stream
+
+      - name: Upload Linux ARM binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm
+          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm
+          asset_content_type: application/octet-stream
+
+      - name: Upload Linux ARM64 binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm64
+          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm64
+          asset_content_type: application/octet-stream
+
+      - name: Upload Linux MIPS binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mips
+          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mips
+          asset_content_type: application/octet-stream
+
+      - name: Upload Linux MIPSLE binary
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mipsle
+          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mipsle
+          asset_content_type: application/octet-stream

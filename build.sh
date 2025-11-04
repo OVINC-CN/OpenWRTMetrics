@@ -12,20 +12,22 @@ BUILD_DIR="build"
 rm -rf ${BUILD_DIR}
 mkdir -p ${BUILD_DIR}
 
+echo "building version: ${VERSION}"
+
 echo "building for linux/amd64..."
-GOOS=linux GOARCH=amd64 go build -ldflags "-s -w" -o ${BUILD_DIR}/${APP_NAME}-linux-amd64
+GOOS=linux GOARCH=amd64 go build -ldflags "-s -w -X main.Version=${VERSION}" -o ${BUILD_DIR}/${APP_NAME}-${VERSION}-linux-amd64
 
 echo "building for linux/arm..."
-GOOS=linux GOARCH=arm GOARM=7 go build -ldflags "-s -w" -o ${BUILD_DIR}/${APP_NAME}-linux-arm
+GOOS=linux GOARCH=arm GOARM=7 go build -ldflags "-s -w -X main.Version=${VERSION}" -o ${BUILD_DIR}/${APP_NAME}-${VERSION}-linux-arm
 
 echo "building for linux/arm64..."
-GOOS=linux GOARCH=arm64 go build -ldflags "-s -w" -o ${BUILD_DIR}/${APP_NAME}-linux-arm64
+GOOS=linux GOARCH=arm64 go build -ldflags "-s -w -X main.Version=${VERSION}" -o ${BUILD_DIR}/${APP_NAME}-${VERSION}-linux-arm64
 
 echo "building for linux/mips (big endian)..."
-GOOS=linux GOARCH=mips go build -ldflags "-s -w" -o ${BUILD_DIR}/${APP_NAME}-linux-mips
+GOOS=linux GOARCH=mips go build -ldflags "-s -w -X main.Version=${VERSION}" -o ${BUILD_DIR}/${APP_NAME}-${VERSION}-linux-mips
 
 echo "building for linux/mipsle (little endian)..."
-GOOS=linux GOARCH=mipsle go build -ldflags "-s -w" -o ${BUILD_DIR}/${APP_NAME}-linux-mipsle
+GOOS=linux GOARCH=mipsle go build -ldflags "-s -w -X main.Version=${VERSION}" -o ${BUILD_DIR}/${APP_NAME}-${VERSION}-linux-mipsle
 
 echo "build completed successfully!"
 echo "binaries are in ${BUILD_DIR}/"
