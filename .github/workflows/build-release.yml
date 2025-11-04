@@ -37,11 +37,11 @@ jobs:
       - name: Check if tag already exists
         run: |
           TAG="${{ github.event.inputs.tag }}"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Error: Tag $TAG already exists"
+          if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
+            echo "Error: Tag $TAG already exists on remote"
             exit 1
           fi
-          echo "Tag $TAG does not exist, proceeding..."
+          echo "Tag $TAG does not exist on remote, proceeding..."
 
       - name: Create and push tag
         run: |
@@ -69,7 +69,7 @@ jobs:
         id: prerelease
         run: |
           TAG="${{ github.event.inputs.tag }}"
-          if [[ "$TAG" =~ -(alpha|beta|rc) ]]; then
+          if [[ "$TAG" =~ -(alpha|beta|rc|dev|snapshot|pre) ]]; then
             echo "is_prerelease=true" >> $GITHUB_OUTPUT
           else
             echo "is_prerelease=false" >> $GITHUB_OUTPUT
