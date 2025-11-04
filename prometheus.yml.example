@@ -1,0 +1,8 @@
+scrape_configs:
+  # openwrt router metrics
+  - job_name: 'openwrt'
+    static_configs:
+      - targets: ['192.168.1.1:9101']
+        labels:
+          instance: 'openwrt-router'
+          environment: 'home'

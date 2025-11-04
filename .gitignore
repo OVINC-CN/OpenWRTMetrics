@@ -1,0 +1,30 @@
+# build output
+build
+openwrt-exporter
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# test binary
+*.test
+
+# output of the go coverage tool
+*.out
+
+# dependency directories
+vendor/
+
+# go workspace file
+go.work
+
+# ide
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# os files
+.DS_Store

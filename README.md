@@ -1,0 +1,159 @@
+# OpenWRT Prometheus Exporter
+
+A Prometheus exporter for OpenWRT routers that provides network interface and connected device metrics.
+
+## Features
+
+- **Network Interface Metrics**:
+  - Interface name
+  - Cumulative uptime
+  - Total bytes received/transmitted
+  - Total packets received/transmitted
+
+- **Connected Device Metrics**:
+  - Device hostname
+  - Assigned internal IP address
+  - MAC address
+  - DHCP lease remaining time
+
+## Installation
+
+### Build from source
+
+```bash
+go build -o openwrt-exporter
+```
+
+### Cross-compile for OpenWRT (MIPS)
+
+```bash
+# For MIPS (big endian)
+GOOS=linux GOARCH=mips go build -o openwrt-exporter
+
+# For MIPS (little endian)
+GOOS=linux GOARCH=mipsle go build -o openwrt-exporter
+
+# For ARM
+GOOS=linux GOARCH=arm GOARM=7 go build -o openwrt-exporter
+
+# For ARM64
+GOOS=linux GOARCH=arm64 go build -o openwrt-exporter
+```
+
+## Usage
+
+### Run the exporter
+
+```bash
+./openwrt-exporter
+```
+
+By default, the exporter listens on port `9101` and exposes metrics at `/metrics`.
+
+### Command-line options
+
+```bash
+./openwrt-exporter -listen-address=":9101" -metrics-path="/metrics"
+```
+
+- `-listen-address`: Address to listen on for metrics (default: `:9101`)
+- `-metrics-path`: Path under which to expose metrics (default: `/metrics`)
+
+### Access metrics
+
+```bash
+curl http://localhost:9101/metrics
+```
+
+## Metrics
+
+### Network Interface Metrics
+
+```
+# HELP openwrt_network_receive_bytes_total total number of bytes received on network interface
+# TYPE openwrt_network_receive_bytes_total counter
+openwrt_network_receive_bytes_total{interface="eth0"} 1.23456789e+09
+
+# HELP openwrt_network_transmit_bytes_total total number of bytes transmitted on network interface
+# TYPE openwrt_network_transmit_bytes_total counter
+openwrt_network_transmit_bytes_total{interface="eth0"} 9.87654321e+08
+
+# HELP openwrt_network_receive_packets_total total number of packets received on network interface
+# TYPE openwrt_network_receive_packets_total counter
+openwrt_network_receive_packets_total{interface="eth0"} 1234567
+
+# HELP openwrt_network_transmit_packets_total total number of packets transmitted on network interface
+# TYPE openwrt_network_transmit_packets_total counter
+openwrt_network_transmit_packets_total{interface="eth0"} 987654
+
+# HELP openwrt_network_uptime_seconds network interface uptime in seconds
+# TYPE openwrt_network_uptime_seconds gauge
+openwrt_network_uptime_seconds{interface="eth0"} 86400
+```
+
+### Connected Device Metrics
+
+```
+# HELP openwrt_device_info information about connected devices
+# TYPE openwrt_device_info gauge
+openwrt_device_info{hostname="my-phone",ip="192.168.1.100",mac="aa:bb:cc:dd:ee:ff"} 1
+
+# HELP openwrt_device_dhcp_lease_remaining_seconds dhcp lease remaining time in seconds
+# TYPE openwrt_device_dhcp_lease_remaining_seconds gauge
+openwrt_device_dhcp_lease_remaining_seconds{hostname="my-phone",ip="192.168.1.100",mac="aa:bb:cc:dd:ee:ff"} 3600
+```
+
+## Prometheus Configuration
+
+Add the following to your `prometheus.yml`:
+
+```yaml
+scrape_configs:
+  - job_name: 'openwrt'
+    static_configs:
+      - targets: ['<openwrt-router-ip>:9101']
+```
+
+## Running as a Service on OpenWRT
+
+Create a service file `/etc/init.d/openwrt-exporter`:
+
+```bash
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+
+USE_PROCD=1
+
+start_service() {
+    procd_open_instance
+    procd_set_param command /usr/bin/openwrt-exporter
+    procd_set_param respawn
+    procd_close_instance
+}
+```
+
+Enable and start the service:
+
+```bash
+chmod +x /etc/init.d/openwrt-exporter
+/etc/init.d/openwrt-exporter enable
+/etc/init.d/openwrt-exporter start
+```
+
+## Requirements
+
+- Go 1.21 or higher (for building)
+- OpenWRT router with:
+  - `/proc/net/dev` for network interface statistics
+  - `/tmp/dhcp.leases` or `/var/lib/misc/dnsmasq.leases` for DHCP leases
+  - `/proc/net/arp` or `ip neigh` command for ARP table
+
+## License
+
+See [LICENSE](LICENSE) file.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
