@@ -79,25 +79,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag }}
-          name: Release ${{ github.event.inputs.tag }}
+          name: ${{ github.event.inputs.tag }}
           draft: false
           prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
           body: |
-            ## Release ${{ github.event.inputs.tag }}
-            
-            ### Binaries
-            Pre-built binaries for multiple platforms are attached to this release.
-            
-            ### Platforms Supported
-            - Linux AMD64
-            - Linux ARM (ARMv7)
-            - Linux ARM64
-            - Linux MIPS (Big Endian)
-            - Linux MIPSLE (Little Endian)
-            
-            ### Installation
-            1. Download the appropriate binary for your platform
-            2. Make it executable: `chmod +x openwrt-exporter-*`
-            3. Run it: `./openwrt-exporter-*`
+            Release ${{ github.event.inputs.tag }}
           files: |
             build/openwrt-exporter-*
