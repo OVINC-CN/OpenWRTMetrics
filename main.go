@@ -43,6 +43,7 @@ func main() {
 	// register collectors
 	registry.MustRegister(collector.NewNetworkCollector())
 	registry.MustRegister(collector.NewDeviceCollector())
+	registry.MustRegister(collector.NewInterfaceIPCollector())
 
 	// setup http handler
 	http.Handle(*metricsPath, promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
