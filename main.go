@@ -14,6 +14,9 @@ import (
 var (
 	listenAddress = flag.String("listen-address", ":9101", "address to listen on for metrics")
 	metricsPath   = flag.String("metrics-path", "/metrics", "path under which to expose metrics")
+	version       = flag.Bool("version", false, "show version information")
+	// Version is set via -ldflags at build time
+	Version = "dev"
 )
 
 const homePage = `<html>
@@ -27,7 +30,12 @@ const homePage = `<html>
 func main() {
 	flag.Parse()
 
-	log.Printf("starting openwrt exporter on %s", *listenAddress)
+	if *version {
+		fmt.Printf("OpenWRT Exporter version %s\n", Version)
+		return
+	}
+
+	log.Printf("starting openwrt exporter version %s on %s", Version, *listenAddress)
 
 	// create custom registry
 	registry := prometheus.NewRegistry()
