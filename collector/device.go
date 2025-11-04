@@ -103,6 +103,8 @@ type ConnectedDevice struct {
 
 // get connected devices from dhcp leases and arp table
 func getConnectedDevices() ([]ConnectedDevice, error) {
+
+	// use composite key (mac+ip) to support both ipv4 and ipv6
 	devices := make(map[string]*ConnectedDevice)
 
 	// read dhcp leases from /tmp/dhcp.leases or /var/dhcp.leases
@@ -111,7 +113,8 @@ func getConnectedDevices() ([]ConnectedDevice, error) {
 		log.Printf("warning: failed to read dhcp leases: %v", err)
 	} else {
 		for _, d := range dhcpDevices {
-			devices[d.MAC] = d
+			key := d.MAC + "|" + d.IP
+			devices[key] = d
 		}
 	}
 
@@ -121,13 +124,9 @@ func getConnectedDevices() ([]ConnectedDevice, error) {
 		log.Printf("warning: failed to read arp table: %v", err)
 	} else {
 		for _, d := range arpDevices {
-			if existing, ok := devices[d.MAC]; ok {
-				// merge information
-				if d.IP != "" {
-					existing.IP = d.IP
-				}
-			} else {
-				devices[d.MAC] = d
+			key := d.MAC + "|" + d.IP
+			if _, ok := devices[key]; !ok {
+				devices[key] = d
 			}
 		}
 	}
@@ -135,6 +134,7 @@ func getConnectedDevices() ([]ConnectedDevice, error) {
 	// convert map to slice
 	var result []ConnectedDevice
 	for _, device := range devices {
+
 		// ensure we have at least ip or mac
 		if device.IP != "" || device.MAC != "" {
 			result = append(result, *device)
