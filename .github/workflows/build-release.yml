@@ -65,16 +65,23 @@ jobs:
           chmod +x build.sh
           ./build.sh
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Determine if prerelease
+        id: prerelease
+        run: |
+          TAG="${{ github.event.inputs.tag }}"
+          if [[ "$TAG" =~ -(alpha|beta|rc) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Release and Upload Binaries
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.tag }}
-          release_name: Release ${{ github.event.inputs.tag }}
+          name: Release ${{ github.event.inputs.tag }}
           draft: false
-          prerelease: false
+          prerelease: ${{ steps.prerelease.outputs.is_prerelease }}
           body: |
             ## Release ${{ github.event.inputs.tag }}
             
@@ -92,53 +99,5 @@ jobs:
             1. Download the appropriate binary for your platform
             2. Make it executable: `chmod +x openwrt-exporter-*`
             3. Run it: `./openwrt-exporter-*`
-
-      - name: Upload Linux AMD64 binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-amd64
-          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-amd64
-          asset_content_type: application/octet-stream
-
-      - name: Upload Linux ARM binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm
-          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm
-          asset_content_type: application/octet-stream
-
-      - name: Upload Linux ARM64 binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm64
-          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-arm64
-          asset_content_type: application/octet-stream
-
-      - name: Upload Linux MIPS binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mips
-          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mips
-          asset_content_type: application/octet-stream
-
-      - name: Upload Linux MIPSLE binary
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./build/openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mipsle
-          asset_name: openwrt-exporter-${{ steps.build_version.outputs.version }}-linux-mipsle
-          asset_content_type: application/octet-stream
+          files: |
+            build/openwrt-exporter-*
