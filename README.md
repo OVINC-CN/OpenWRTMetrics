@@ -16,6 +16,14 @@ A Prometheus exporter for OpenWRT routers that provides network interface and co
   - MAC address
   - DHCP lease remaining time
 
+- **Ping Metrics**:
+  - Ping latency (min/avg/max) in milliseconds
+  - Packet loss percentage
+  - Packets sent/received
+  - Support for multiple targets
+  - Configurable ping count, interval, and timeout
+  - Uses pro-bing library for cross-platform ICMP/UDP ping (no external ping command required)
+
 ## Installation
 
 ### Build from source
@@ -59,6 +67,22 @@ By default, the exporter listens on port `9101` and exposes metrics at `/metrics
 - `-listen-address`: Address to listen on for metrics (default: `:9101`)
 - `-metrics-path`: Path under which to expose metrics (default: `/metrics`)
 
+### Environment Variables
+
+The ping collector supports the following environment variables:
+
+- `PING_TARGETS`: Comma-separated list of ping targets (IP addresses or hostnames)
+  - Example: `PING_TARGETS="8.8.8.8,1.1.1.1,google.com"`
+- `PING_COUNT`: Number of ping packets to send per target (default: `3`)
+- `PING_INTERVAL`: Interval between ping packets in seconds (default: `1.0`)
+- `PING_TIMEOUT`: Ping timeout in seconds (default: `5.0`)
+
+Example with ping configuration:
+
+```bash
+PING_TARGETS="8.8.8.8,1.1.1.1" PING_COUNT=5 PING_TIMEOUT=3 ./openwrt-exporter
+```
+
 ### Access metrics
 
 ```bash
@@ -101,6 +125,34 @@ openwrt_device_info{hostname="my-phone",ip="192.168.1.100",mac="aa:bb:cc:dd:ee:f
 # HELP openwrt_device_dhcp_lease_remaining_seconds dhcp lease remaining time in seconds
 # TYPE openwrt_device_dhcp_lease_remaining_seconds gauge
 openwrt_device_dhcp_lease_remaining_seconds{hostname="my-phone",ip="192.168.1.100",mac="aa:bb:cc:dd:ee:ff"} 3600
+```
+
+### Ping Metrics
+
+```
+# HELP openwrt_ping_avg_latency_ms average ping latency in milliseconds
+# TYPE openwrt_ping_avg_latency_ms gauge
+openwrt_ping_avg_latency_ms{target="8.8.8.8"} 12.345
+
+# HELP openwrt_ping_min_latency_ms minimum ping latency in milliseconds
+# TYPE openwrt_ping_min_latency_ms gauge
+openwrt_ping_min_latency_ms{target="8.8.8.8"} 10.123
+
+# HELP openwrt_ping_max_latency_ms maximum ping latency in milliseconds
+# TYPE openwrt_ping_max_latency_ms gauge
+openwrt_ping_max_latency_ms{target="8.8.8.8"} 15.678
+
+# HELP openwrt_ping_packet_loss_percent ping packet loss percentage
+# TYPE openwrt_ping_packet_loss_percent gauge
+openwrt_ping_packet_loss_percent{target="8.8.8.8"} 0
+
+# HELP openwrt_ping_packets_sent_total total number of ping packets sent
+# TYPE openwrt_ping_packets_sent_total counter
+openwrt_ping_packets_sent_total{target="8.8.8.8"} 3
+
+# HELP openwrt_ping_packets_received_total total number of ping packets received
+# TYPE openwrt_ping_packets_received_total counter
+openwrt_ping_packets_received_total{target="8.8.8.8"} 3
 ```
 
 ## Prometheus Configuration
