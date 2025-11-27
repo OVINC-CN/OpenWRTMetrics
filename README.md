@@ -173,21 +173,38 @@ Create a service file `/etc/init.d/openwrt-exporter`:
 ```bash
 #!/bin/sh /etc/rc.common
 
+# openwrt init script for prometheus exporter
+
 START=99
 STOP=10
 
 USE_PROCD=1
 
+PROG=/usr/bin/openwrt-exporter
+LISTEN_ADDRESS=":9101"
+METRICS_PATH="/metrics"
+
 start_service() {
     procd_open_instance
     procd_set_param command /usr/bin/openwrt-exporter
-    procd_set_param env PING_TARGETS="8.8.8.8,1.1.1.1"
-    procd_set_param env PING_COUNT=10
-    procd_set_param env PING_INTERVAL=10ms
-    procd_set_param env PING_TIMEOUT=3s
+    procd_set_param env PING_TARGETS="1.1.1.1" \
+                        PING_COUNT=10 \
+                        PING_INTERVAL=10ms \
+                        PING_TIMEOUT=3s
     procd_set_param user root
     procd_set_param respawn
+    procd_set_param stderr 1
+    procd_set_param stdout 1
     procd_close_instance
+}
+
+stop_service() {
+    service_stop $PROG
+}
+
+reload_service() {
+    stop_service
+    start_service
 }
 ```
 
