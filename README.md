@@ -73,9 +73,9 @@ The ping collector supports the following environment variables:
 
 - `PING_TARGETS`: Comma-separated list of ping targets (IP addresses or hostnames)
   - Example: `PING_TARGETS="8.8.8.8,1.1.1.1,google.com"`
-- `PING_COUNT`: Number of ping packets to send per target (default: `3`)
-- `PING_INTERVAL`: Interval between ping packets in seconds (default: `1.0`)
-- `PING_TIMEOUT`: Ping timeout in seconds (default: `5.0`)
+- `PING_COUNT`: Number of ping packets to send per target (default: `10`)
+- `PING_INTERVAL`: Interval between ping packets in seconds (default: `10ms`)
+- `PING_TIMEOUT`: Ping timeout in seconds (default: `3s`)
 
 Example with ping configuration:
 
@@ -181,6 +181,11 @@ USE_PROCD=1
 start_service() {
     procd_open_instance
     procd_set_param command /usr/bin/openwrt-exporter
+    procd_set_param env PING_TARGETS="8.8.8.8,1.1.1.1"
+    procd_set_param env PING_COUNT=10
+    procd_set_param env PING_INTERVAL=10ms
+    procd_set_param env PING_TIMEOUT=3s
+    procd_set_param user root
     procd_set_param respawn
     procd_close_instance
 }
