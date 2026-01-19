@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	probing "github.com/prometheus-community/pro-bing"
@@ -24,10 +25,11 @@ type PingCollector struct {
 
 // ping configuration
 type PingConfig struct {
-	Targets  []PingTarget
-	Count    int
-	Interval time.Duration
-	Timeout  time.Duration
+	Targets     []PingTarget
+	Count       int
+	Interval    time.Duration
+	Timeout     time.Duration
+	Concurrency int
 }
 
 type IPType string
@@ -94,41 +96,88 @@ func (c *PingCollector) Collect(ch chan<- prometheus.Metric) {
 		return
 	}
 
+	// result struct for collecting ping results
+	type pingResultWithTarget struct {
+		target PingTarget
+		result *PingResult
+		err    error
+	}
+
+	// task channel for workers
+	tasksCh := make(chan PingTarget, len(c.config.Targets))
+
+	// results channel
+	resultsCh := make(chan pingResultWithTarget, len(c.config.Targets))
+
+	// determine worker count
+	workerCount := c.config.Concurrency
+	if workerCount > len(c.config.Targets) {
+		workerCount = len(c.config.Targets)
+	}
+
+	// start fixed number of workers
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for target := range tasksCh {
+				result, err := pingTarget(target, c.config)
+				resultsCh <- pingResultWithTarget{
+					target: target,
+					result: result,
+					err:    err,
+				}
+			}
+		}()
+	}
+
+	// send tasks to workers
 	for _, target := range c.config.Targets {
-		result, err := pingTarget(target, c.config)
-		if err != nil {
-			log.Printf("error pinging target %s: %v", target.Host, err)
+		tasksCh <- target
+	}
+	close(tasksCh)
+
+	// close results channel when all workers are done
+	go func() {
+		wg.Wait()
+		close(resultsCh)
+	}()
+
+	// collect results and send metrics
+	for r := range resultsCh {
+		if r.err != nil {
+			log.Printf("error pinging target %s: %v", r.target.Host, r.err)
 			continue
 		}
 
 		ch <- prometheus.MustNewConstMetric(
 			c.avgLatencyMs,
 			prometheus.GaugeValue,
-			result.AvgLatencyMs,
-			target.Host, result.IP, result.IPType,
+			r.result.AvgLatencyMs,
+			r.target.Host, r.result.IP, r.result.IPType,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.minLatencyMs,
 			prometheus.GaugeValue,
-			result.MinLatencyMs,
-			target.Host, result.IP, result.IPType,
+			r.result.MinLatencyMs,
+			r.target.Host, r.result.IP, r.result.IPType,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.maxLatencyMs,
 			prometheus.GaugeValue,
-			result.MaxLatencyMs,
-			target.Host, result.IP, result.IPType,
+			r.result.MaxLatencyMs,
+			r.target.Host, r.result.IP, r.result.IPType,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.packetLoss,
 			prometheus.GaugeValue,
-			result.PacketLoss,
-			target.Host, result.IP, result.IPType,
+			r.result.PacketLoss,
+			r.target.Host, r.result.IP, r.result.IPType,
 		)
-
 	}
 }
 
@@ -145,9 +194,10 @@ type PingResult struct {
 // load ping configuration from environment variables
 func loadPingConfig() *PingConfig {
 	config := &PingConfig{
-		Count:    10,
-		Interval: 10 * time.Millisecond,
-		Timeout:  3 * time.Second,
+		Count:       10,
+		Interval:    10 * time.Millisecond,
+		Timeout:     3 * time.Second,
+		Concurrency: 10,
 	}
 
 	// ping_targets: comma-separated list of IPv4 targets
@@ -192,6 +242,13 @@ func loadPingConfig() *PingConfig {
 	if timeoutEnv := os.Getenv("PING_TIMEOUT"); timeoutEnv != "" {
 		if timeout, err := time.ParseDuration(timeoutEnv); err == nil && timeout > 0 {
 			config.Timeout = timeout
+		}
+	}
+
+	// ping_concurrency: number of concurrent ping workers
+	if concurrencyEnv := os.Getenv("PING_CONCURRENCY"); concurrencyEnv != "" {
+		if concurrency, err := strconv.Atoi(concurrencyEnv); err == nil && concurrency > 0 {
+			config.Concurrency = concurrency
 		}
 	}
 

@@ -22,7 +22,8 @@ A Prometheus exporter for OpenWRT routers that provides network interface and co
   - Packets sent/received
   - Support for multiple targets (IPv4 and IPv6)
   - Target IP address and IP type (IPv4/IPv6) labels
-  - Configurable ping count, interval, and timeout
+  - Configurable ping count, interval, timeout, and concurrency
+  - Concurrent ping execution with configurable worker count
   - Uses pro-bing library for cross-platform ICMP/UDP ping (no external ping command required)
 
 - **UPnP Metrics**:
@@ -83,13 +84,14 @@ The ping collector supports the following environment variables:
 - `PING_TARGETS_V6`: Comma-separated list of IPv6 ping targets (force IPv6 resolution)
   - Example: `PING_TARGETS_V6="2001:4860:4860::8888,2606:4700:4700::1111"`
 - `PING_COUNT`: Number of ping packets to send per target (default: `10`)
-- `PING_INTERVAL`: Interval between ping packets in seconds (default: `10ms`)
-- `PING_TIMEOUT`: Ping timeout in seconds (default: `3s`)
+- `PING_INTERVAL`: Interval between ping packets (default: `10ms`)
+- `PING_TIMEOUT`: Ping timeout (default: `3s`)
+- `PING_CONCURRENCY`: Number of concurrent ping workers (default: `10`)
 
 Example with ping configuration:
 
 ```bash
-PING_TARGETS="8.8.8.8,1.1.1.1" PING_TARGETS_V6="2001:4860:4860::8888" PING_COUNT=5 PING_TIMEOUT=3s ./openwrt-exporter
+PING_TARGETS="8.8.8.8,1.1.1.1" PING_TARGETS_V6="2001:4860:4860::8888" PING_COUNT=5 PING_TIMEOUT=3s PING_CONCURRENCY=5 ./openwrt-exporter
 ```
 
 ### Access metrics
@@ -217,7 +219,8 @@ start_service() {
                         PING_TARGETS_V6="2606:4700:4700::1111" \
                         PING_COUNT=10 \
                         PING_INTERVAL=10ms \
-                        PING_TIMEOUT=3s
+                        PING_TIMEOUT=3s \
+                        PING_CONCURRENCY=10
     procd_set_param user root
     procd_set_param respawn
     procd_set_param stderr 1
