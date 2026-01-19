@@ -24,6 +24,12 @@ A Prometheus exporter for OpenWRT routers that provides network interface and co
   - Configurable ping count, interval, and timeout
   - Uses pro-bing library for cross-platform ICMP/UDP ping (no external ping command required)
 
+- **UPnP Metrics**:
+  - Active UPnP port mapping information
+  - Port mapping lease duration
+  - Total number of active mappings
+  - Protocol, external/internal ports, internal IP, and description labels
+
 ## Installation
 
 ### Build from source
@@ -155,6 +161,22 @@ openwrt_ping_packets_sent_total{target="8.8.8.8"} 3
 openwrt_ping_packets_received_total{target="8.8.8.8"} 3
 ```
 
+### UPnP Metrics
+
+```
+# HELP openwrt_upnp_mapping_count total number of active UPnP port mappings
+# TYPE openwrt_upnp_mapping_count gauge
+openwrt_upnp_mapping_count 2
+
+# HELP openwrt_upnp_mapping_info information about UPnP port mappings
+# TYPE openwrt_upnp_mapping_info gauge
+openwrt_upnp_mapping_info{protocol="TCP",external_port="12345",internal_ip="192.168.1.100",internal_port="12345",description="My App"} 1
+
+# HELP openwrt_upnp_mapping_lease_seconds UPnP port mapping lease duration in seconds (0 means permanent)
+# TYPE openwrt_upnp_mapping_lease_seconds gauge
+openwrt_upnp_mapping_lease_seconds{protocol="TCP",external_port="12345",internal_ip="192.168.1.100",internal_port="12345",description="My App"} 86400
+```
+
 ## Prometheus Configuration
 
 Add the following to your `prometheus.yml`:
@@ -223,6 +245,7 @@ chmod +x /etc/init.d/openwrt-exporter
   - `/proc/net/dev` for network interface statistics
   - `/tmp/dhcp.leases` or `/var/lib/misc/dnsmasq.leases` for DHCP leases
   - `/proc/net/arp` or `ip neigh` command for ARP table
+  - `miniupnpd` package for UPnP metrics (optional, leases file at `/var/run/miniupnpd.leases`)
 
 ## License
 
