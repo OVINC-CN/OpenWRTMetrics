@@ -20,7 +20,8 @@ A Prometheus exporter for OpenWRT routers that provides network interface and co
   - Ping latency (min/avg/max) in milliseconds
   - Packet loss percentage
   - Packets sent/received
-  - Support for multiple targets
+  - Support for multiple targets (IPv4 and IPv6)
+  - Target IP address and IP type (IPv4/IPv6) labels
   - Configurable ping count, interval, and timeout
   - Uses pro-bing library for cross-platform ICMP/UDP ping (no external ping command required)
 
@@ -77,8 +78,10 @@ By default, the exporter listens on port `9101` and exposes metrics at `/metrics
 
 The ping collector supports the following environment variables:
 
-- `PING_TARGETS`: Comma-separated list of ping targets (IP addresses or hostnames)
+- `PING_TARGETS`: Comma-separated list of ping targets (IP addresses or hostnames, prefer IPv4)
   - Example: `PING_TARGETS="8.8.8.8,1.1.1.1,google.com"`
+- `PING_TARGETS_V6`: Comma-separated list of IPv6 ping targets (force IPv6 resolution)
+  - Example: `PING_TARGETS_V6="2001:4860:4860::8888,2606:4700:4700::1111"`
 - `PING_COUNT`: Number of ping packets to send per target (default: `10`)
 - `PING_INTERVAL`: Interval between ping packets in seconds (default: `10ms`)
 - `PING_TIMEOUT`: Ping timeout in seconds (default: `3s`)
@@ -86,7 +89,7 @@ The ping collector supports the following environment variables:
 Example with ping configuration:
 
 ```bash
-PING_TARGETS="8.8.8.8,1.1.1.1" PING_COUNT=5 PING_TIMEOUT=3 ./openwrt-exporter
+PING_TARGETS="8.8.8.8,1.1.1.1" PING_TARGETS_V6="2001:4860:4860::8888" PING_COUNT=5 PING_TIMEOUT=3s ./openwrt-exporter
 ```
 
 ### Access metrics
@@ -138,27 +141,28 @@ openwrt_device_dhcp_lease_remaining_seconds{hostname="my-phone",ip="192.168.1.10
 ```
 # HELP openwrt_ping_avg_latency_ms average ping latency in milliseconds
 # TYPE openwrt_ping_avg_latency_ms gauge
-openwrt_ping_avg_latency_ms{target="8.8.8.8"} 12.345
+openwrt_ping_avg_latency_ms{target="8.8.8.8",ip="8.8.8.8",ip_type="IPv4"} 12.345
+openwrt_ping_avg_latency_ms{target="google.com",ip="2001:4860:4860::8888",ip_type="IPv6"} 15.678
 
 # HELP openwrt_ping_min_latency_ms minimum ping latency in milliseconds
 # TYPE openwrt_ping_min_latency_ms gauge
-openwrt_ping_min_latency_ms{target="8.8.8.8"} 10.123
+openwrt_ping_min_latency_ms{target="8.8.8.8",ip="8.8.8.8",ip_type="IPv4"} 10.123
 
 # HELP openwrt_ping_max_latency_ms maximum ping latency in milliseconds
 # TYPE openwrt_ping_max_latency_ms gauge
-openwrt_ping_max_latency_ms{target="8.8.8.8"} 15.678
+openwrt_ping_max_latency_ms{target="8.8.8.8",ip="8.8.8.8",ip_type="IPv4"} 15.678
 
 # HELP openwrt_ping_packet_loss_percent ping packet loss percentage
 # TYPE openwrt_ping_packet_loss_percent gauge
-openwrt_ping_packet_loss_percent{target="8.8.8.8"} 0
+openwrt_ping_packet_loss_percent{target="8.8.8.8",ip="8.8.8.8",ip_type="IPv4"} 0
 
 # HELP openwrt_ping_packets_sent_total total number of ping packets sent
 # TYPE openwrt_ping_packets_sent_total counter
-openwrt_ping_packets_sent_total{target="8.8.8.8"} 3
+openwrt_ping_packets_sent_total{target="8.8.8.8",ip="8.8.8.8",ip_type="IPv4"} 3
 
 # HELP openwrt_ping_packets_received_total total number of ping packets received
 # TYPE openwrt_ping_packets_received_total counter
-openwrt_ping_packets_received_total{target="8.8.8.8"} 3
+openwrt_ping_packets_received_total{target="8.8.8.8",ip="8.8.8.8",ip_type="IPv4"} 3
 ```
 
 ### UPnP Metrics
@@ -210,6 +214,7 @@ start_service() {
     procd_open_instance
     procd_set_param command /usr/bin/openwrt-exporter
     procd_set_param env PING_TARGETS="1.1.1.1" \
+                        PING_TARGETS_V6="2606:4700:4700::1111" \
                         PING_COUNT=10 \
                         PING_INTERVAL=10ms \
                         PING_TIMEOUT=3s

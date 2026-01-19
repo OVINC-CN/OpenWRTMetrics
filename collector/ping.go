@@ -2,6 +2,7 @@ package collector
 
 import (
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -23,41 +24,56 @@ type PingCollector struct {
 
 // ping configuration
 type PingConfig struct {
-	Targets  []string
+	Targets  []PingTarget
 	Count    int
 	Interval time.Duration
 	Timeout  time.Duration
+}
+
+type IPType string
+
+const (
+	IPTypeIPv4 IPType = "IPv4"
+	IPTypeIPv6 IPType = "IPv6"
+)
+
+// ping target with IP version
+type PingTarget struct {
+	Host   string
+	IPType IPType
 }
 
 // create a new ping collector
 func NewPingCollector() *PingCollector {
 	config := loadPingConfig()
 
+	labels := []string{"target", "ip", "ip_type"}
+
 	return &PingCollector{
 		latencyMs: prometheus.NewDesc(
 			"openwrt_ping_latency_ms",
 			"ping latency in milliseconds",
-			[]string{"target"}, nil,
+			labels, nil,
 		),
 		packetLoss: prometheus.NewDesc(
 			"openwrt_ping_packet_loss_percent",
 			"ping packet loss percentage",
-			[]string{"target"}, nil,
+			labels, nil,
 		),
 		minLatencyMs: prometheus.NewDesc(
 			"openwrt_ping_min_latency_ms",
 			"minimum ping latency in milliseconds",
-			[]string{"target"}, nil,
+			labels, nil,
 		),
 		maxLatencyMs: prometheus.NewDesc(
 			"openwrt_ping_max_latency_ms",
 			"maximum ping latency in milliseconds",
-			[]string{"target"}, nil,
+			labels, nil,
 		),
 		avgLatencyMs: prometheus.NewDesc(
 			"openwrt_ping_avg_latency_ms",
 			"average ping latency in milliseconds",
-			[]string{"target"}, nil,
+			labels, nil,
 		),
 		config: config,
 	}
@@ -81,7 +97,7 @@ func (c *PingCollector) Collect(ch chan<- prometheus.Metric) {
 	for _, target := range c.config.Targets {
 		result, err := pingTarget(target, c.config)
 		if err != nil {
-			log.Printf("error pinging target %s: %v", target, err)
+			log.Printf("error pinging target %s: %v", target.Host, err)
 			continue
 		}
 
@@ -89,28 +105,28 @@ func (c *PingCollector) Collect(ch chan<- prometheus.Metric) {
 			c.avgLatencyMs,
 			prometheus.GaugeValue,
 			result.AvgLatencyMs,
-			target,
+			target.Host, result.IP, result.IPType,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.minLatencyMs,
 			prometheus.GaugeValue,
 			result.MinLatencyMs,
-			target,
+			target.Host, result.IP, result.IPType,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.maxLatencyMs,
 			prometheus.GaugeValue,
 			result.MaxLatencyMs,
-			target,
+			target.Host, result.IP, result.IPType,
 		)
 
 		ch <- prometheus.MustNewConstMetric(
 			c.packetLoss,
 			prometheus.GaugeValue,
 			result.PacketLoss,
-			target,
+			target.Host, result.IP, result.IPType,
 		)
 
 	}
@@ -122,6 +138,8 @@ type PingResult struct {
 	MaxLatencyMs float64
 	AvgLatencyMs float64
 	PacketLoss   float64
+	IP           string
+	IPType       string
 }
 
 // load ping configuration from environment variables
@@ -132,14 +150,26 @@ func loadPingConfig() *PingConfig {
 		Timeout:  3 * time.Second,
 	}
 
-	// ping_targets: comma-separated list of targets
+	// ping_targets: comma-separated list of IPv4 targets
 	targetsEnv := os.Getenv("PING_TARGETS")
 	if targetsEnv != "" {
 		targets := strings.Split(targetsEnv, ",")
 		for _, target := range targets {
 			target = strings.TrimSpace(target)
 			if target != "" {
-				config.Targets = append(config.Targets, target)
+				config.Targets = append(config.Targets, PingTarget{Host: target, IPType: IPTypeIPv4})
+			}
+		}
+	}
+
+	// ping_targets_v6: comma-separated list of IPv6 targets
+	targetsV6Env := os.Getenv("PING_TARGETS_V6")
+	if targetsV6Env != "" {
+		targets := strings.Split(targetsV6Env, ",")
+		for _, target := range targets {
+			target = strings.TrimSpace(target)
+			if target != "" {
+				config.Targets = append(config.Targets, PingTarget{Host: target, IPType: IPTypeIPv6})
 			}
 		}
 	}
@@ -169,15 +199,46 @@ func loadPingConfig() *PingConfig {
 }
 
 // ping a target and return the result
-func pingTarget(target string, config *PingConfig) (*PingResult, error) {
+func pingTarget(target PingTarget, config *PingConfig) (*PingResult, error) {
 
-	// create pinger
-	pinger, err := probing.NewPinger(target)
+	// resolve IP address first to determine IP type
+	var resolvedIP net.IP
+
+	// lookup IPs
+	ips, err := net.LookupIP(target.Host)
 	if err != nil {
 		return nil, err
 	}
 
-	// set privileged mode to false to use udp instead of icmp (no root required)
+	switch target.IPType {
+	case IPTypeIPv4:
+		for _, ip := range ips {
+			if ip.To4() != nil {
+				resolvedIP = ip
+				break
+			}
+		}
+	case IPTypeIPv6:
+		for _, ip := range ips {
+			if ip.To4() == nil && ip.To16() != nil {
+				resolvedIP = ip
+				break
+			}
+		}
+	default:
+		return nil, &net.AddrError{Err: "unknown IP type", Addr: target.Host}
+	}
+	if resolvedIP == nil {
+		return nil, &net.AddrError{Err: "no IPv6 address found", Addr: target.Host}
+	}
+
+	// create pinger with resolved IP
+	pinger, err := probing.NewPinger(resolvedIP.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// set privileged mode to true to use icmp (requires root)
 	pinger.SetPrivileged(true)
 
 	// configure ping parameters
@@ -199,6 +260,8 @@ func pingTarget(target string, config *PingConfig) (*PingResult, error) {
 		MinLatencyMs: float64(stats.MinRtt.Microseconds()) / 1000.0,
 		MaxLatencyMs: float64(stats.MaxRtt.Microseconds()) / 1000.0,
 		AvgLatencyMs: float64(stats.AvgRtt.Microseconds()) / 1000.0,
+		IP:           resolvedIP.String(),
+		IPType:       string(target.IPType),
 	}
 
 	return result, nil
